@@ -1,9 +1,9 @@
 // Code Arduino - Eye Control System v2
 // 4 sorties contrôlées
 
-const int OUTPUT1 = 8;  // Programme principal
-const int OUTPUT2 = 9;  // Œil gauche fermé
-const int OUTPUT3 = 10; // Œil droit fermé
+const int OUTPUT1 = 3;  // Programme principal
+const int OUTPUT2 = 5;  // Œil gauche fermé
+const int OUTPUT3 = 7; // Œil droit fermé
 const int OUTPUT4 = 11; // Validation centre (yeux ouverts + iris centre)
 
 String command = "";
