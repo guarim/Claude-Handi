@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eye Control System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 3em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+        
+        .tagline {
+            font-size: 1.1em;
+            color: #a0aec0;
+            font-weight: 300;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 40px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 50px;
+            cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        button:disabled {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            background: #1a1a2e;
+        }
+        
+        video {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: scaleX(-1);
+        }
+        
+        .outputs-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .output-card {
+            background: rgba(26, 26, 46, 0.6);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .output-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .output-card.active::before {
+            opacity: 0.15;
+        }
+        
+        .output-card.active {
+            border-color: #667eea;
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .output-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .output-title {
+            font-weight: 600;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .output-label {
+            font-size: 0.85em;
+            color: #a0aec0;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .debug-panel {
+            background: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .debug-header {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.95em;
+            margin-bottom: 25px;
+            text-align: center;
+            border: 2px solid;
+        }
+        
+        .status-badge.active {
+            background: rgba(72, 187, 120, 0.2);
+            border-color: #48bb78;
+            color: #48bb78;
+        }
+        
+        .status-badge.inactive {
+            background: rgba(245, 101, 101, 0.2);
+            border-color: #f56565;
+            color: #f56565;
+        }
+        
+        .debug-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+        
+        .debug-label {
+            font-size: 0.85em;
+            color: #a0aec0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .debug-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .debug-subvalue {
+            font-size: 0.9em;
+            color: #cbd5e0;
+            margin-top: 5px;
+        }
+        
+        .command-log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #48bb78;
+        }
+        
+        .command-log::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .command-log::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+        
+        .command-log::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 3px;
+        }
+        
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .outputs-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚡ Eye Control System</h1>
+        <div class="tagline">Neural Interface × Arduino Control</div>
+    </div>
+    
+    <div class="controls">
+        <button id="connectBtn">🔌 Connecter Arduino</button>
+        <button id="startBtn" disabled>📹 Démarrer Caméra</button>
+    </div>
+
+    <div class="container">
+        <div class="video-section">
+            <div class="video-wrapper">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+            </div>
+            
+            <div class="outputs-grid">
+                <div class="output-card" id="output1">
+                    <div class="output-icon">🚀</div>
+                    <div class="output-title">SORTIE 1</div>
+                    <div class="output-label">Programme Principal</div>
+                </div>
+                <div class="output-card" id="output2">
+                    <div class="output-icon">◀️</div>
+                    <div class="output-title">SORTIE 2</div>
+                    <div class="output-label">Œil Gauche</div>
+                </div>
+                <div class="output-card" id="output3">
+                    <div class="output-icon">▶️</div>
+                    <div class="output-title">SORTIE 3</div>
+                    <div class="output-label">Œil Droit</div>
+                </div>
+                <div class="output-card" id="output4">
+                    <div class="output-icon">✨</div>
+                    <div class="output-title">SORTIE 4</div>
+                    <div class="output-label">Validation Centre</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="debug-panel">
+            <div class="debug-header">
+                📊 Monitoring
+            </div>
+            
+            <div class="status-badge inactive" id="programStatus">
+                ⏸ PROGRAMME ARRÊTÉ
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">👁 Œil Gauche</div>
+                <div class="debug-value" id="leftEyeStatus">—</div>
+                <div class="debug-subvalue">Ratio: <span id="leftEyeRatio">0.000</span></div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">👁 Œil Droit</div>
+                <div class="debug-value" id="rightEyeStatus">—</div>
+                <div class="debug-subvalue">Ratio: <span id="rightEyeRatio">0.000</span></div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">🎯 Position Iris Droit</div>
+                <div class="debug-value" id="rightIrisPos">Centre</div>
+                <div class="debug-subvalue">X: <span id="rightIrisX">0.000</span></div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">🎯 Position Iris Gauche</div>
+                <div class="debug-value" id="leftIrisPos">Centre</div>
+                <div class="debug-subvalue">X: <span id="leftIrisX">0.000</span></div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">⏱ Timer Fermeture</div>
+                <div class="debug-value" id="bothClosedTimer">0.0s</div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">🔗 État Arduino</div>
+                <div class="debug-value" id="arduinoStatus">Non connecté</div>
+            </div>
+
+            <div class="debug-item">
+                <div class="debug-label">📡 Journal de commandes</div>
+                <div class="command-log" id="commandLog">En attente...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let port = null;
+        let writer = null;
+        let faceMesh = null;
+        let camera = null;
+        let programActive = false;
+        let bothEyesClosedStart = null;
+        let bothEyesClosedDuration = 0;
+        let output1 = false;
+        let output2 = false;
+        let output3 = false;
+        let output4 = false;
+        let leftIrisBaseX = null;
+        let rightIrisBaseX = null;
+        const THRESHOLD_CLOSED = 0.18;
+        const THRESHOLD_IRIS_CENTER = 0.025;
+
+        // Connexion Arduino
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 });
+                writer = port.writable.getWriter();
+                
+                document.getElementById('arduinoStatus').textContent = '✓ Connecté';
+                document.getElementById('arduinoStatus').style.color = '#48bb78';
+                document.getElementById('startBtn').disabled = false;
+                addCommandLog('✓ Arduino connecté avec succès');
+            } catch (err) {
+                alert('❌ Erreur de connexion: ' + err.message);
+            }
+        });
+
+        async function sendArduinoCommand(cmd) {
+            if (!writer) return;
+            try {
+                await writer.write(new TextEncoder().encode(cmd + '\n'));
+                addCommandLog(cmd);
+            } catch (err) {
+                console.error('Erreur envoi:', err);
+            }
+        }
+
+        function addCommandLog(text) {
+            const log = document.getElementById('commandLog');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML = `<div>[${time}] ${text}</div>` + log.innerHTML;
+        }
+
+        function updateOutputDisplay(num, state) {
+            const elem = document.getElementById(`output${num}`);
+            if (state) {
+                elem.classList.add('active');
+            } else {
+                elem.classList.remove('active');
+            }
+        }
+
+        function getEyeOpenRatio(landmarks, eyePoints) {
+            const vertical1 = Math.hypot(
+                landmarks[eyePoints[1]].x - landmarks[eyePoints[5]].x,
+                landmarks[eyePoints[1]].y - landmarks[eyePoints[5]].y
+            );
+            const vertical2 = Math.hypot(
+                landmarks[eyePoints[2]].x - landmarks[eyePoints[4]].x,
+                landmarks[eyePoints[2]].y - landmarks[eyePoints[4]].y
+            );
+            const horizontal = Math.hypot(
+                landmarks[eyePoints[0]].x - landmarks[eyePoints[3]].x,
+                landmarks[eyePoints[0]].y - landmarks[eyePoints[3]].y
+            );
+            return (vertical1 + vertical2) / (2 * horizontal);
+        }
+
+        const LEFT_EYE = [33, 160, 158, 133, 153, 144];
+        const RIGHT_EYE = [362, 385, 387, 263, 373, 380];
+        const LEFT_IRIS = [468, 469, 470, 471, 472];
+        const RIGHT_IRIS = [473, 474, 475, 476, 477];
+
+        function onResults(results) {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
+                const landmarks = results.multiFaceLandmarks[0];
+                
+                // Dessiner mesh facial
+                ctx.fillStyle = '#667eea';
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 1;
+                
+                landmarks.forEach(landmark => {
+                    ctx.beginPath();
+                    ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 1, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+
+                // Calculs
+                const leftRatio = getEyeOpenRatio(landmarks, LEFT_EYE);
+                const rightRatio = getEyeOpenRatio(landmarks, RIGHT_EYE);
+                
+                const leftClosed = leftRatio < THRESHOLD_CLOSED;
+                const rightClosed = rightRatio < THRESHOLD_CLOSED;
+                
+                // Position iris
+                const leftIrisX = landmarks[LEFT_IRIS[0]].x;
+                const rightIrisX = landmarks[RIGHT_IRIS[0]].x;
+                
+                // Initialiser position de base
+                if (leftIrisBaseX === null && !leftClosed) leftIrisBaseX = leftIrisX;
+                if (rightIrisBaseX === null && !rightClosed) rightIrisBaseX = rightIrisX;
+                
+                // Détection centre pour sortie 4
+                const leftIrisCenter = leftIrisBaseX && Math.abs(leftIrisX - leftIrisBaseX) < THRESHOLD_IRIS_CENTER;
+                const rightIrisCenter = rightIrisBaseX && Math.abs(rightIrisX - rightIrisBaseX) < THRESHOLD_IRIS_CENTER;
+                const bothIrisCenter = leftIrisCenter && rightIrisCenter;
+                
+                // Debug display
+                document.getElementById('leftEyeStatus').textContent = leftClosed ? '⚫ FERMÉ' : '🟢 OUVERT';
+                document.getElementById('rightEyeStatus').textContent = rightClosed ? '⚫ FERMÉ' : '🟢 OUVERT';
+                document.getElementById('leftEyeRatio').textContent = leftRatio.toFixed(3);
+                document.getElementById('rightEyeRatio').textContent = rightRatio.toFixed(3);
+                document.getElementById('rightIrisX').textContent = rightIrisX.toFixed(3);
+                document.getElementById('leftIrisX').textContent = leftIrisX.toFixed(3);
+                document.getElementById('rightIrisPos').textContent = rightIrisCenter ? '🎯 Centre' : '↔️ Décentré';
+                document.getElementById('leftIrisPos').textContent = leftIrisCenter ? '🎯 Centre' : '↔️ Décentré';
+                
+                // Gestion fermeture des deux yeux
+                if (leftClosed && rightClosed) {
+                    if (bothEyesClosedStart === null) {
+                        bothEyesClosedStart = Date.now();
+                    }
+                    bothEyesClosedDuration = (Date.now() - bothEyesClosedStart) / 1000;
+                    document.getElementById('bothClosedTimer').textContent = bothEyesClosedDuration.toFixed(1) + 's';
+                    
+                    // Activation programme (2 secondes)
+                    if (!programActive && bothEyesClosedDuration >= 2.0) {
+                        programActive = true;
+                        output1 = true;
+                        sendArduinoCommand('ON1');
+                        updateOutputDisplay(1, true);
+                        document.getElementById('programStatus').className = 'status-badge active';
+                        document.getElementById('programStatus').textContent = '▶ PROGRAMME ACTIF';
+                        bothEyesClosedStart = null;
+                    }
+                    
+                    // Arrêt programme (1 seconde)
+                    if (programActive && bothEyesClosedDuration >= 1.0 && bothEyesClosedDuration < 2.0) {
+                        programActive = false;
+                        output1 = false;
+                        output2 = false;
+                        output3 = false;
+                        output4 = false;
+                        sendArduinoCommand('OFF1');
+                        sendArduinoCommand('OFF2');
+                        sendArduinoCommand('OFF3');
+                        sendArduinoCommand('OFF4');
+                        updateOutputDisplay(1, false);
+                        updateOutputDisplay(2, false);
+                        updateOutputDisplay(3, false);
+                        updateOutputDisplay(4, false);
+                        document.getElementById('programStatus').className = 'status-badge inactive';
+                        document.getElementById('programStatus').textContent = '⏸ PROGRAMME ARRÊTÉ';
+                        bothEyesClosedStart = null;
+                    }
+                } else {
+                    bothEyesClosedStart = null;
+                    bothEyesClosedDuration = 0;
+                    document.getElementById('bothClosedTimer').textContent = '0.0s';
+                }
+                
+                // Contrôles (si programme actif)
+                if (programActive) {
+                    // Sortie 2: Œil gauche fermé uniquement
+                    if (leftClosed && !rightClosed) {
+                        if (!output2) {
+                            output2 = true;
+                            sendArduinoCommand('ON2');
+                            updateOutputDisplay(2, true);
+                        }
+                    } else {
+                        if (output2) {
+                            output2 = false;
+                            sendArduinoCommand('OFF2');
+                            updateOutputDisplay(2, false);
+                        }
+                    }
+                    
+                    // Sortie 3: Œil droit fermé uniquement
+                    if (rightClosed && !leftClosed) {
+                        if (!output3) {
+                            output3 = true;
+                            sendArduinoCommand('ON3');
+                            updateOutputDisplay(3, true);
+                        }
+                    } else {
+                        if (output3) {
+                            output3 = false;
+                            sendArduinoCommand('OFF3');
+                            updateOutputDisplay(3, false);
+                        }
+                    }
+                    
+                    // Sortie 4: Les deux yeux ouverts + iris au centre
+                    if (!leftClosed && !rightClosed && bothIrisCenter) {
+                        if (!output4) {
+                            output4 = true;
+                            sendArduinoCommand('ON4');
+                            updateOutputDisplay(4, true);
+                        }
+                    } else {
+                        if (output4) {
+                            output4 = false;
+                            sendArduinoCommand('OFF4');
+                            updateOutputDisplay(4, false);
+                        }
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        // Démarrage caméra
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            faceMesh = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
+            
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            faceMesh.onResults(onResults);
+            
+            camera = new Camera(document.getElementById('video'), {
+                onFrame: async () => {
+                    await faceMesh.send({image: document.getElementById('video')});
+                },
+                width: 640,
+                height: 480
+            });
+            
+            camera.start();
+            document.getElementById('startBtn').disabled = true;
+            addCommandLog('📹 Caméra démarrée');
+        });
+    </script>
+</body>
+</html>
